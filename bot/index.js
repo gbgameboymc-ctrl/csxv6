@@ -15,6 +15,8 @@ const CHANNEL_ID = process.env.CHANNEL_ID || null;
 const PREFIX = "!";
 const USER_COOLDOWN_MS = 800;
 const MAX_QUEUE = 50;
+const MIN_DURATION = 0.1; // seconds
+const MAX_DURATION = 10;  // seconds
 
 if (!TOKEN || !API_KEY) {
   console.error("Set DISCORD_TOKEN and API_KEY environment variables.");
@@ -49,16 +51,25 @@ client.on("messageCreate", async (msg) => {
   if (CHANNEL_ID && msg.channelId !== CHANNEL_ID) return;
   if (!msg.content.startsWith(PREFIX)) return;
 
-  const word = msg.content.slice(PREFIX.length).trim().split(/\s+/)[0].toLowerCase();
-  const action = ACTIONS[word];
+  // "!w 3" -> word = "w", duration = 3 seconds (optional, decimals allowed)
+  const [word, arg] = msg.content.slice(PREFIX.length).trim().split(/\s+/);
+  const action = ACTIONS[(word || "").toLowerCase()];
   if (!action) return;
+
+  let duration = null; // null = Roblox uses its default
+  if (arg !== undefined) {
+    const n = parseFloat(arg);
+    if (Number.isFinite(n) && n > 0) {
+      duration = Math.min(Math.max(n, MIN_DURATION), MAX_DURATION);
+    }
+  }
 
   const now = Date.now();
   if (now - (lastUse.get(msg.author.id) || 0) < USER_COOLDOWN_MS) return;
   lastUse.set(msg.author.id, now);
 
   if (queue.length >= MAX_QUEUE) return;
-  queue.push({ user: msg.member?.displayName || msg.author.username, action });
+  queue.push({ user: msg.member?.displayName || msg.author.username, action, duration });
   msg.react("✅").catch(() => {});
 });
 
