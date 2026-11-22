@@ -17,6 +17,7 @@ const USER_COOLDOWN_MS = 800;
 const MAX_QUEUE = 50;
 const MIN_DURATION = 0.1; // seconds
 const MAX_DURATION = 10;  // seconds
+const MODE_COOLDOWN_MS = (parseFloat(process.env.MODE_COOLDOWN_SECONDS) || 30) * 1000; // global, whole server
 
 if (!TOKEN || !API_KEY) {
   console.error("Set DISCORD_TOKEN and API_KEY environment variables.");
@@ -35,6 +36,7 @@ const ACTIONS = {
 
 let queue = [];
 const lastUse = new Map();
+let lastModeChange = 0;
 
 const client = new Client({
   intents: [
@@ -53,7 +55,39 @@ client.on("messageCreate", async (msg) => {
 
   // "!w 3" -> word = "w", duration = 3 seconds (optional, decimals allowed)
   const [word, arg] = msg.content.slice(PREFIX.length).trim().split(/\s+/);
-  const action = ACTIONS[(word || "").toLowerCase()];
+  const cmdWord = (word || "").toLowerCase();
+
+  // "!mode [global|relative]" switches how movement directions work.
+  // No argument = toggle. Has a server-wide cooldown.
+  if (cmdWord === "mode") {
+    const t = Date.now();
+    if (t - (lastUse.get(msg.author.id) || 0) < USER_COOLDOWN_MS) return;
+
+    let mode = "toggle";
+    if (arg !== undefined) {
+      const a = arg.toLowerCase();
+      if (["global", "world"].includes(a)) mode = "global";
+      else if (["relative", "root", "local", "rotation"].includes(a)) mode = "relative";
+      else {
+        msg.reply("Usage: `!mode global`, `!mode relative`, or just `!mode` to toggle.").catch(() => {});
+        return;
+      }
+    }
+
+    const remaining = MODE_COOLDOWN_MS - (t - lastModeChange);
+    if (remaining > 0) {
+      msg.reply(`⏳ Movement mode can be changed again in ${Math.ceil(remaining / 1000)}s.`).catch(() => {});
+      return;
+    }
+
+    lastModeChange = t;
+    lastUse.set(msg.author.id, t);
+    queue.push({ user: msg.member?.displayName || msg.author.username, action: "mode", mode });
+    msg.react("✅").catch(() => {});
+    return;
+  }
+
+  const action = ACTIONS[cmdWord];
   if (!action) return;
 
   let duration = null; // null = Roblox uses its default
