@@ -76,7 +76,7 @@ client.on("messageCreate", async (msg) => {
 
     const remaining = MODE_COOLDOWN_MS - (t - lastModeChange);
     if (remaining > 0) {
-      msg.reply(`⏳ Movement mode can be changed again in ${Math.ceil(remaining / 1000)}s.`).catch(() => {});
+      msg.reply(`!mode can be used again in ${Math.ceil(remaining / 1000)}s.`).catch(() => {});
       return;
     }
 
